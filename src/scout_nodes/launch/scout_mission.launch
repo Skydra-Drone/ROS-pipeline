@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- 1. Start Perception Pipeline (Sensors + YOLO + Geolocation) -->
+    <include file="$(find scout_nodes)/launch/perception.launch" />
+
+    <!-- 2. Start Scout Communication Node (Drone Side) -->
+    <node name="communication_node_scout" pkg="scout_nodes" type="communication_node_scout.py" output="screen" />
+    
+    <!-- 3. Start Scout Decision / Mission Logic -->
+    <node name="decision_node_scout" pkg="scout_nodes" type="decision_node_scout.py" output="screen" />
+
+    <!-- 4. Start Delivery Commander (Optional - only if controlling delivery drone) -->
+    <node name="delivery_commander_node" pkg="scout_nodes" type="delivery_commander_node.py" output="screen" />
+
+</launch>

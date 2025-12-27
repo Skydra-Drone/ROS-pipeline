@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- Scout Drone Sensor Nodes -->
+    
+    <!-- Camera Node -->
+    <node name="camera_node" pkg="scout_nodes" type="camera_node.py" output="screen">
+        <!-- param name="camera_source" value="0"/ --> 
+    </node>
+    
+    <!-- Thermal Camera Node -->
+    <node name="thermal_camera_node" pkg="scout_nodes" type="thermal_camera_node.py" output="screen">
+    </node>
+    
+    <!-- LiDAR Node -->
+    <node name="lidar_node" pkg="scout_nodes" type="lidar_node.py" output="screen">
+    </node>
+    
+</launch>

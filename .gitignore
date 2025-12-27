@@ -1,0 +1,32 @@
+# ROS Build Artifacts
+build/
+devel/
+logs/
+.catkin_workspace
+.catkin_tools/
+.ros/
+
+# Python
+*.pyc
+__pycache__/
+
+# Model Weights (Large files)
+*.pt
+*.onnx
+*.tflite
+*.engine
+
+# IDEs
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Private videos/images
+*.mp4
+*.avi
+*.jpg
+*.png
+src/CMakeLists.txt

@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- 1. Start Sensors -->
+    <include file="$(find scout_nodes)/launch/sensors.launch" />
+
+    <!-- 2. Start YOLO Detector -->
+    <node name="yolo_detector_node" pkg="scout_nodes" type="yolo_node.py" output="screen" />
+    
+    <!-- 3. Start Geolocation Node -->
+    <node name="geolocation_node" pkg="scout_nodes" type="geolocation_node.py" output="screen" />
+
+    <!-- 4. Start Fake Drone Data Publisher (For Testing Only) -->
+    <node name="fake_drone_publisher" pkg="scout_nodes" type="fake_drone_publisher.py" output="screen" />
+
+</launch>

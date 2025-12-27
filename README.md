@@ -123,6 +123,3 @@ Open a **third terminal** to monitor the critical topics:
 4. Push to the Branch
 5. Open a Pull Request
 
-## 📄 License
-
-Distributed under the MIT License.

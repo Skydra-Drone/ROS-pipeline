@@ -3,6 +3,7 @@ import rospy
 import time
 from std_msgs.msg import String
 from geographic_msgs.msg import GeoPoint
+from custom_msgs.msg import TargetCoordinatesArray
 try:
     from pymavlink import mavutil
 except ImportError:
@@ -20,7 +21,7 @@ class DeliveryCommanderNode:
         self.state = "IDLE" # IDLE, PENDING_APPROVAL, COMMANDING
         
         # --- Subscribers ---
-        rospy.Subscriber('/mission/target_coordinates', GeoPoint, self.target_callback)
+        rospy.Subscriber('/mission/target_coordinates', TargetCoordinatesArray, self.target_callback)
         rospy.Subscriber('/mission/command', String, self.command_callback)
         
         # --- MAVLink Connection ---
@@ -37,9 +38,9 @@ class DeliveryCommanderNode:
 
     def target_callback(self, msg):
         if self.state == "IDLE":
-            self.target_coords = msg
+            self.target_coords = msg.diff_targets
             self.state = "PENDING_APPROVAL"
-            rospy.loginfo(f"Delivery Target Received: {msg.latitude}, {msg.longitude}. Waiting for Approval.")
+            rospy.loginfo(f"Delivery Targets Received: {len(msg.diff_targets)} locations. Waiting for Approval.")
 
     def command_callback(self, msg):
         if msg.data == "APPROVE_DELIVERY" and self.state == "PENDING_APPROVAL":
@@ -69,19 +70,33 @@ class DeliveryCommanderNode:
         )
         time.sleep(10)
         
-        # 4. Go to Target
-        rospy.loginfo(f"Flying to {self.target_coords.latitude}, {self.target_coords.longitude}")
-        self.master.mav.mission_item_send(
-            self.master.target_system,
-            self.master.target_component,
-            0,
-            mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
-            mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
-            2, 0, 1, 0, 0, 0,
-            self.target_coords.latitude,
-            self.target_coords.longitude,
-            10 # Altitude
-        )
+        # Loop through all targets
+        for i, target in enumerate(self.target_coords):
+             rospy.loginfo(f"--- Delivering to Target {i+1}/{len(self.target_coords)} ---")
+             
+             # 4. Go to Target
+             rospy.loginfo(f"Flying to {target.latitude}, {target.longitude}")
+             self.master.mav.mission_item_send(
+                 self.master.target_system,
+                 self.master.target_component,
+                 0,
+                 mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
+                 mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
+                 2, 0, 1, 0, 0, 0,
+                 target.latitude,
+                 target.longitude,
+                 10 # Altitude
+             )
+             
+             # Wait for arrival (mock sleep for now since we lack telemetry check loop)
+             time.sleep(15) 
+             
+             # 5. Drop Payload (Servo)
+             rospy.loginfo("Dropping Payload...")
+             # self.master.mav.command_long_send(...)
+             time.sleep(2)
+        
+        rospy.loginfo("All deliveries complete. Returning to Launch.")
         
         # logic to wait for arrival would go here...
         

@@ -51,6 +51,10 @@ class GeolocationNode:
         # We will publish the sorted list of target coordinates here
         self.target_pub = rospy.Publisher('/mission/target_coordinates', TargetCoordinatesArray, queue_size=10)
 
+        # --- State ---
+        self.unique_targets = [] # List of {'lat': float, 'lon': float, 'count': int}
+        self.DUPLICATE_THRESHOLD_M = 3.0 # Meters
+
         # --- Synchronized Subscribers ---
         # Create subscribers for each topic
         detection_sub = message_filters.Subscriber('/yolo/detections', YoloDetectionArray)
@@ -118,29 +122,64 @@ class GeolocationNode:
             # Step 5: Convert to GPS
             t_lon, t_lat = transformer.transform(east_m, north_m)
             
-            # Calculate distance for sorting
-            dist = haversine(drone_lat, drone_lon, t_lat, t_lon)
-            
-            # Create GeoPoint
-            p = GeoPoint()
-            p.latitude = t_lat
-            p.longitude = t_lon
-            p.altitude = 0.0
-            
-            calculated_targets.append({'point': p, 'dist': dist})
+            # Update Unique Targets
+            self.update_unique_target(t_lat, t_lon, drone_lat, drone_lon)
 
-        if not calculated_targets:
+        if not self.unique_targets:
             return
 
-        # Sort by distance (ascending)
-        calculated_targets.sort(key=lambda x: x['dist'])
+        # Sort ALL unique targets by distance to drone (Rescheduling)
+        # We recalculate distance for all because drone moves
+        for t in self.unique_targets:
+             t['current_dist'] = haversine(drone_lat, drone_lon, t['lat'], t['lon'])
+             
+        self.unique_targets.sort(key=lambda x: x['current_dist'])
 
         # Create output message
         final_msg = TargetCoordinatesArray()
-        final_msg.diff_targets = [x['point'] for x in calculated_targets]
+        for t in self.unique_targets:
+            p = GeoPoint()
+            p.latitude = t['lat']
+            p.longitude = t['lon']
+            p.altitude = 0.0
+            final_msg.diff_targets.append(p)
 
         self.target_pub.publish(final_msg)
-        rospy.loginfo(f"Published {len(final_msg.diff_targets)} targets. Closest is {calculated_targets[0]['dist']:.2f}m away.")
+        rospy.loginfo(f"Published {len(final_msg.diff_targets)} unique targets. Closest is {self.unique_targets[0]['current_dist']:.2f}m away.")
+
+    def update_unique_target(self, new_lat, new_lon, drone_lat, drone_lon):
+        """
+        Checks if the new detection matches an existing one.
+        If yes, averages the position. If no, adds it.
+        """
+        best_match_idx = -1
+        min_dist = float('inf')
+        
+        for i, target in enumerate(self.unique_targets):
+            dist = haversine(new_lat, new_lon, target['lat'], target['lon'])
+            if dist < min_dist:
+                min_dist = dist
+                best_match_idx = i
+                
+        if min_dist < self.DUPLICATE_THRESHOLD_M:
+            # It's a match! Update with running average
+            t = self.unique_targets[best_match_idx]
+            n = t['count']
+            
+            # Simple running average
+            t['lat'] = (t['lat'] * n + new_lat) / (n + 1)
+            t['lon'] = (t['lon'] * n + new_lon) / (n + 1)
+            t['count'] += 1
+            rospy.loginfo(f"Updated existing target. New count: {t['count']}")
+        else:
+            # It's new
+            rospy.loginfo(f"Found NEW target at {new_lat}, {new_lon}")
+            self.unique_targets.append({
+                'lat': new_lat,
+                'lon': new_lon,
+                'count': 1,
+                'current_dist': 0.0 # Will be updated before publish
+            })
 
     def run(self):
         rospy.spin()

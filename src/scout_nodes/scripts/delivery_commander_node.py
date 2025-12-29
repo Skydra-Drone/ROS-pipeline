@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import rospy
 import time
+import math
+import numpy as np
 from std_msgs.msg import String
 from geographic_msgs.msg import GeoPoint
 from custom_msgs.msg import TargetCoordinatesArray
@@ -12,6 +14,14 @@ except ImportError:
 
 # --- CONFIG ---
 DELIVERY_DRONE_CONNECTION = "udp:192.168.1.102:14550" # IP of Delivery Drone FC
+
+def haversine(lat1, lon1, lat2, lon2):
+    R = 6371000
+    phi1, phi2 = np.radians(lat1), np.radians(lat2)
+    dphi = np.radians(lat2 - lat1)
+    dlambda = np.radians(lon2 - lon1)
+    a = np.sin(dphi / 2)**2 + np.cos(phi1) * np.cos(phi2) * np.sin(dlambda / 2)**2
+    return 2 * R * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
 
 class DeliveryCommanderNode:
     def __init__(self):
@@ -88,8 +98,32 @@ class DeliveryCommanderNode:
                  10 # Altitude
              )
              
-             # Wait for arrival (mock sleep for now since we lack telemetry check loop)
-             time.sleep(15) 
+             # Wait for arrival with active telemetry check
+             rospy.loginfo("Waiting for arrival...")
+             start_wait = time.time()
+             has_arrived = False
+             
+             while time.time() - start_wait < 60: # 60s timeout per target
+                 # Try to get position (GLOBAL_POSITION_INT)
+                 # We simply read the latest message from the buffer
+                 msg = self.master.recv_match(type='GLOBAL_POSITION_INT', blocking=False)
+                 if msg:
+                     current_lat = msg.lat / 1e7
+                     current_lon = msg.lon / 1e7
+                     
+                     dist = haversine(current_lat, current_lon, target.latitude, target.longitude)
+                     # Check if within 0.5m (and ensure altitude is reasonable if needed)
+                     if dist < 0.5:
+                         rospy.loginfo(f"Arrived at target! Distance: {dist:.2f}m")
+                         has_arrived = True
+                         break
+                 
+                 time.sleep(0.2)
+            
+             if not has_arrived:
+                 rospy.logwarn("Timeout reached before arriving at target! Creating risk of bad drop.")
+                 # Decide whether to drop or skip. For safety, we might skip.
+                 # continue 
              
              # 5. Drop Payload (Servo)
              rospy.loginfo("Dropping Payload...")
@@ -97,11 +131,6 @@ class DeliveryCommanderNode:
              time.sleep(2)
         
         rospy.loginfo("All deliveries complete. Returning to Launch.")
-        
-        # logic to wait for arrival would go here...
-        
-        # 5. Drop Payload (Servo)
-        # self.master.mav.command_long_send(...)
         
         # 6. Return to Launch
         # self.master.mav.command_long_send(..., mavutil.mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH, ...)

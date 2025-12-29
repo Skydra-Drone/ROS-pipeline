@@ -6,7 +6,7 @@ import threading
 from std_msgs.msg import String
 from geographic_msgs.msg import GeoPoint
 from sensor_msgs.msg import NavSatFix, BatteryState
-from custom_msgs.msg import YoloDetectionArray
+from custom_msgs.msg import YoloDetectionArray, TargetCoordinatesArray
 
 # --- CONFIG ---
 BASE_STATION_IP = "192.168.1.100" # CHANGE THIS to Base Station IP
@@ -21,7 +21,7 @@ class ScoutCommunicationNode:
         self.command_pub = rospy.Publisher('/mission/command', String, queue_size=10)
         
         # --- Subscribers (From ROS to Network) ---
-        rospy.Subscriber('/mission/target_coordinates', GeoPoint, self.target_callback)
+        rospy.Subscriber('/mission/target_coordinates', TargetCoordinatesArray, self.target_callback)
         rospy.Subscriber('/yolo/detections', YoloDetectionArray, self.detection_callback)
         rospy.Subscriber('/mavros/global_position/global', NavSatFix, self.gps_callback)
         # Add more telemetry as needed
@@ -50,8 +50,10 @@ class ScoutCommunicationNode:
             rospy.logerr_throttle(5, f"Network Error: {e}")
 
     def target_callback(self, msg):
-        data = {"lat": msg.latitude, "lon": msg.longitude, "alt": msg.altitude}
-        self.send_packet("TARGET_FOUND", data)
+        targets = []
+        for t in msg.diff_targets:
+            targets.append({"lat": t.latitude, "lon": t.longitude, "alt": t.altitude})
+        self.send_packet("TARGET_LIST_FOUND", targets)
 
     def detection_callback(self, msg):
         # We only send simple detection alerts to save bandwidth

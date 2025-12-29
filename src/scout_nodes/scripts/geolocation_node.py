@@ -12,8 +12,19 @@ from geographic_msgs.msg import GeoPoint
 
 def haversine(lat1, lon1, lat2, lon2):
     """
-    Calculate the great circle distance between two points 
-    on the earth (specified in decimal degrees)
+    Calculate the great circle distance between two points on the earth (specified in decimal degrees).
+    
+    This formula is used because the Earth is a sphere, not a flat plane. 
+    Standard Euclidean distance (sqrt(x^2 + y^2)) would be inaccurate for GPS coordinates (Lat/Lon).
+    
+    How it works for us:
+    1. We take the Drone's GPS (lat1, lon1).
+    2. We take the Detected Target's GPS (lat2, lon2).
+    3. We calculate the shortest path over the earth's surface between them.
+    4. The result is the distance in meters.
+    
+    We use this distance to sort the targets. By sorting in ascending order (smallest distance first),
+    we ensure the drone goes to the closest target first.
     """
     R = 6371000  # Radius of earth in meters
     phi1, phi2 = np.radians(lat1), np.radians(lat2)
